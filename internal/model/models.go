@@ -70,6 +70,53 @@ type AllocationRuleItem struct {
 }
 
 // =====================================================
+// 逾期等级常量
+// =====================================================
+
+const (
+	OverdueTierM1  = "M1"  // 逾期1-30天
+	OverdueTierM2  = "M2"  // 逾期31-60天
+	OverdueTierM3  = "M3"  // 逾期61-90天
+	OverdueTierM4  = "M4"  // 逾期91-120天
+	OverdueTierM5  = "M5"  // 逾期121-150天
+	OverdueTierM6  = "M6"  // 逾期151-180天
+	OverdueTierM7P = "M7+" // 逾期181天以上
+)
+
+// GetOverdueTier 根据逾期天数计算逾期等级
+func GetOverdueTier(overdueDays int) string {
+	switch {
+	case overdueDays <= 0:
+		return ""
+	case overdueDays <= 30:
+		return OverdueTierM1
+	case overdueDays <= 60:
+		return OverdueTierM2
+	case overdueDays <= 90:
+		return OverdueTierM3
+	case overdueDays <= 120:
+		return OverdueTierM4
+	case overdueDays <= 150:
+		return OverdueTierM5
+	case overdueDays <= 180:
+		return OverdueTierM6
+	default:
+		return OverdueTierM7P
+	}
+}
+
+// =====================================================
+// 催收状态常量
+// =====================================================
+
+const (
+	CollectionStatusNormal      = "NORMAL"       // 正常
+	CollectionStatusInCollection = "IN_COLLECTION" // 催收中
+	CollectionStatusLegal       = "LEGAL"        // 法律程序
+	CollectionStatusWrittenOff  = "WRITTEN_OFF"  // 核销
+)
+
+// =====================================================
 // 借据模型
 // =====================================================
 
@@ -105,7 +152,12 @@ type Loan struct {
 	
 	OverdueDays          int             `json:"overdue_days" db:"overdue_days"`
 	OverduePrincipal     decimal.Decimal `json:"overdue_principal" db:"overdue_principal"`
-	
+
+	OverdueTier          string          `json:"overdue_tier" db:"overdue_tier"`             // M1-M7+ 逾期等级
+	CollectionStatus     string          `json:"collection_status" db:"collection_status"`   // 催收状态
+	LastCollectionDate   *time.Time      `json:"last_collection_date" db:"last_collection_date"` // 最后催收日期
+	CollectionNotes      string          `json:"collection_notes" db:"collection_notes"`     // 催收备注
+
 	CreatedBy            string          `json:"created_by" db:"created_by"`
 	UpdatedBy            string          `json:"updated_by" db:"updated_by"`
 	CreatedAt            time.Time       `json:"created_at" db:"created_at"`
@@ -273,6 +325,94 @@ type RepaymentDetail struct {
 // 跑批模型
 // =====================================================
 
+// =====================================================
+// 信贷PM核心功能模型
+// =====================================================
+
+// PenaltyWaiver 罚息减免记录
+type PenaltyWaiver struct {
+	ID             uint64          `json:"id" db:"id"`
+	WaiverNo       string          `json:"waiver_no" db:"waiver_no"`
+	LoanNo         string          `json:"loan_no" db:"loan_no"`
+	WaiverType     string          `json:"waiver_type" db:"waiver_type"`         // PENALTY/INTEREST/OTHER_FEE
+	WaiverAmount   decimal.Decimal `json:"waiver_amount" db:"waiver_amount"`
+	OriginalAmount decimal.Decimal `json:"original_amount" db:"original_amount"` // 原始金额
+	Reason         string          `json:"reason" db:"reason"`
+	ApprovedBy     string          `json:"approved_by" db:"approved_by"`
+	Status         string          `json:"status" db:"status"` // PENDING/APPROVED/REJECTED/APPLIED
+	CreatedBy      string          `json:"created_by" db:"created_by"`
+	UpdatedBy      string          `json:"updated_by" db:"updated_by"`
+	CreatedAt      time.Time       `json:"created_at" db:"created_at"`
+	UpdatedAt      time.Time       `json:"updated_at" db:"updated_at"`
+}
+
+// LoanExtension 借据展期记录
+type LoanExtension struct {
+	ID                uint64    `json:"id" db:"id"`
+	ExtensionNo       string    `json:"extension_no" db:"extension_no"`
+	LoanNo            string    `json:"loan_no" db:"loan_no"`
+	OriginalMaturity  time.Time `json:"original_maturity" db:"original_maturity"` // 原到期日
+	NewMaturity       time.Time `json:"new_maturity" db:"new_maturity"`           // 新到期日
+	ExtensionDays     int       `json:"extension_days" db:"extension_days"`
+	ExtensionMonths   int       `json:"extension_months" db:"extension_months"`
+	Reason            string    `json:"reason" db:"reason"`
+	Status            string    `json:"status" db:"status"` // PENDING/APPROVED/REJECTED/APPLIED
+	CreatedBy         string    `json:"created_by" db:"created_by"`
+	UpdatedBy         string    `json:"updated_by" db:"updated_by"`
+	CreatedAt         time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at" db:"updated_at"`
+}
+
+// WriteOff 坏账核销记录
+type WriteOff struct {
+	ID              uint64          `json:"id" db:"id"`
+	WriteOffNo      string          `json:"write_off_no" db:"write_off_no"`
+	LoanNo          string          `json:"loan_no" db:"loan_no"`
+	WriteOffAmount  decimal.Decimal `json:"write_off_amount" db:"write_off_amount"`     // 核销金额
+	PrincipalAmount decimal.Decimal `json:"principal_amount" db:"principal_amount"`     // 本金
+	InterestAmount  decimal.Decimal `json:"interest_amount" db:"interest_amount"`       // 利息
+	PenaltyAmount   decimal.Decimal `json:"penalty_amount" db:"penalty_amount"`         // 罚息
+	Reason          string          `json:"reason" db:"reason"`
+	ApprovedBy      string          `json:"approved_by" db:"approved_by"`
+	Status          string          `json:"status" db:"status"` // PENDING/APPROVED/REJECTED/APPLIED
+	CreatedBy       string          `json:"created_by" db:"created_by"`
+	UpdatedBy       string          `json:"updated_by" db:"updated_by"`
+	CreatedAt       time.Time       `json:"created_at" db:"created_at"`
+	UpdatedAt       time.Time       `json:"updated_at" db:"updated_at"`
+}
+
+// RepaymentReminder 还款提醒记录
+type RepaymentReminder struct {
+	ID          uint64    `json:"id" db:"id"`
+	LoanNo      string    `json:"loan_no" db:"loan_no"`
+	PlanID      uint64    `json:"plan_id" db:"plan_id"`
+	Period      int       `json:"period" db:"period"`
+	DueDate     time.Time `json:"due_date" db:"due_date"`
+	DaysBefore  int       `json:"days_before" db:"days_before"` // 提前天数
+	ReminderType string   `json:"reminder_type" db:"reminder_type"` // SMS/EMAIL/PUSH
+	Status      string    `json:"status" db:"status"` // PENDING/SENT/FAILED
+	SentAt      *time.Time `json:"sent_at" db:"sent_at"`
+	CreatedBy   string    `json:"created_by" db:"created_by"`
+	UpdatedBy   string    `json:"updated_by" db:"updated_by"`
+	CreatedAt   time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at" db:"updated_at"`
+}
+
+// CustomerStatement 客户对账单
+type CustomerStatement struct {
+	LoanNo            string          `json:"loan_no"`
+	StatementDate     time.Time       `json:"statement_date"`
+	Principal         decimal.Decimal `json:"principal"`
+	AnnualRate        decimal.Decimal `json:"annual_rate"`
+	RemainingPrincipal decimal.Decimal `json:"remaining_principal"`
+	TotalPaid         decimal.Decimal `json:"total_paid"`
+	TotalDue          decimal.Decimal `json:"total_due"`
+	OverdueDays       int             `json:"overdue_days"`
+	OverdueTier       string          `json:"overdue_tier"`
+	Status            string          `json:"status"`
+	Plans             []Plan          `json:"plans"`
+	RecentRepayments  []Repayment     `json:"recent_repayments"`
+}
 // BatchJob 跑批批次
 type BatchJob struct {
 	ID              uint64    `json:"id" db:"id"`

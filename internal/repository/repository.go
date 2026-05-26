@@ -27,19 +27,21 @@ func (r *LoanRepository) CreateLoan(loan *model.Loan) error {
 			total_interest, total_penalty, total_other_fee,
 			paid_principal, paid_interest, paid_penalty, paid_other_fee,
 			overdue_days, overdue_principal,
+			overdue_tier, collection_status, last_collection_date, collection_notes,
 			created_by, updated_by
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
-	
+
 	now := time.Now()
 	result, err := r.db.Exec(query,
-		loan.LoanNo, loan.Principal.String(), loan.AnnualRate.String(), loan.TermMonths, 
+		loan.LoanNo, loan.Principal.String(), loan.AnnualRate.String(), loan.TermMonths,
 		loan.RepaymentTypeCode, loan.AllocationRuleCode,
 		loan.ValueDate, loan.FirstDueDate, loan.MaturityDate, loan.DisbursementDate, loan.Status,
 		loan.DisbursedAmount.String(), loan.RemainingPrincipal.String(),
 		loan.TotalInterest.String(), loan.TotalPenalty.String(), loan.TotalOtherFee.String(),
 		loan.PaidPrincipal.String(), loan.PaidInterest.String(), loan.PaidPenalty.String(), loan.PaidOtherFee.String(),
 		loan.OverdueDays, loan.OverduePrincipal.String(),
+		loan.OverdueTier, loan.CollectionStatus, loan.LastCollectionDate, loan.CollectionNotes,
 		loan.CreatedBy, loan.UpdatedBy,
 	)
 	if err != nil {
@@ -67,31 +69,34 @@ func (r *LoanRepository) GetLoanByNo(loanNo string) (*model.Loan, error) {
 			total_interest, total_penalty, total_other_fee,
 			paid_principal, paid_interest, paid_penalty, paid_other_fee,
 			overdue_days, overdue_principal,
+			overdue_tier, collection_status, last_collection_date, collection_notes,
 			created_by, updated_by, created_at, updated_at
 		FROM loans WHERE loan_no = ?
 	`
-	
+
 	loan := &model.Loan{}
 	var principal, annualRate, disbursedAmount, remainingPrincipal string
 	var totalInterest, totalPenalty, totalOtherFee string
 	var paidPrincipal, paidInterest, paidPenalty, paidOtherFee string
 	var overduePrincipal string
-	var settlementDate, disbursementDate sql.NullTime
-	
+	var settlementDate, disbursementDate, lastCollectionDate sql.NullTime
+	var overdueTier, collectionStatus, collectionNotes sql.NullString
+
 	err := r.db.QueryRow(query, loanNo).Scan(
-		&loan.ID, &loan.LoanNo, &principal, &annualRate, &loan.TermMonths, 
+		&loan.ID, &loan.LoanNo, &principal, &annualRate, &loan.TermMonths,
 		&loan.RepaymentTypeCode, &loan.AllocationRuleCode,
 		&loan.ValueDate, &loan.FirstDueDate, &loan.MaturityDate, &settlementDate, &disbursementDate, &loan.Status,
 		&disbursedAmount, &remainingPrincipal,
 		&totalInterest, &totalPenalty, &totalOtherFee,
 		&paidPrincipal, &paidInterest, &paidPenalty, &paidOtherFee,
 		&loan.OverdueDays, &overduePrincipal,
+		&overdueTier, &collectionStatus, &lastCollectionDate, &collectionNotes,
 		&loan.CreatedBy, &loan.UpdatedBy, &loan.CreatedAt, &loan.UpdatedAt,
 	)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// 解析 decimal
 	if loan.Principal, err = decimal.NewFromString(principal); err != nil {
 		return nil, fmt.Errorf("failed to parse principal: %w", err)
@@ -136,7 +141,19 @@ func (r *LoanRepository) GetLoanByNo(loanNo string) (*model.Loan, error) {
 	if disbursementDate.Valid {
 		loan.DisbursementDate = &disbursementDate.Time
 	}
-	
+	if overdueTier.Valid {
+		loan.OverdueTier = overdueTier.String
+	}
+	if collectionStatus.Valid {
+		loan.CollectionStatus = collectionStatus.String
+	}
+	if lastCollectionDate.Valid {
+		loan.LastCollectionDate = &lastCollectionDate.Time
+	}
+	if collectionNotes.Valid {
+		loan.CollectionNotes = collectionNotes.String
+	}
+
 	return loan, nil
 }
 
@@ -149,10 +166,11 @@ func (r *LoanRepository) UpdateLoan(loan *model.Loan) error {
 			total_interest = ?, total_penalty = ?, total_other_fee = ?,
 			paid_principal = ?, paid_interest = ?, paid_penalty = ?, paid_other_fee = ?,
 			overdue_days = ?, overdue_principal = ?,
+			overdue_tier = ?, collection_status = ?, last_collection_date = ?, collection_notes = ?,
 			updated_by = ?, updated_at = ?
 		WHERE id = ?
 	`
-	
+
 	now := time.Now()
 	_, err := r.db.Exec(query,
 		loan.Status, loan.SettlementDate, loan.DisbursementDate,
@@ -160,13 +178,14 @@ func (r *LoanRepository) UpdateLoan(loan *model.Loan) error {
 		loan.TotalInterest.String(), loan.TotalPenalty.String(), loan.TotalOtherFee.String(),
 		loan.PaidPrincipal.String(), loan.PaidInterest.String(), loan.PaidPenalty.String(), loan.PaidOtherFee.String(),
 		loan.OverdueDays, loan.OverduePrincipal.String(),
+		loan.OverdueTier, loan.CollectionStatus, loan.LastCollectionDate, loan.CollectionNotes,
 		loan.UpdatedBy, now, loan.ID,
 	)
-	
+
 	if err != nil {
 		return err
 	}
-	
+
 	loan.UpdatedAt = now
 	return nil
 }
@@ -307,6 +326,58 @@ func (r *PlanRepository) GetPlanByLoanNoAndPeriod(loanNo string, period int) (*m
 	}
 
 	return plan, nil
+}
+
+// GetPlansDueBefore 获取指定日期前到期的还款计划
+func (r *PlanRepository) GetPlansDueBefore(targetDate time.Time) ([]model.Plan, error) {
+	query := `
+		SELECT id, loan_no, period, due_date,
+			due_principal, due_interest, due_penalty, due_other_fee, due_total,
+			paid_principal, paid_interest, paid_penalty, paid_other_fee, paid_total,
+			overdue_days, status,
+			created_by, updated_by, created_at, updated_at
+		FROM plans WHERE due_date <= ? AND status IN ('PENDING', 'PARTIAL')
+		ORDER BY due_date
+	`
+
+	rows, err := r.db.Query(query, targetDate)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var plans []model.Plan
+	for rows.Next() {
+		plan := model.Plan{}
+		var duePrincipal, dueInterest, duePenalty, dueOtherFee, dueTotal string
+		var paidPrincipal, paidInterest, paidPenalty, paidOtherFee, paidTotal string
+
+		err := rows.Scan(
+			&plan.ID, &plan.LoanNo, &plan.Period, &plan.DueDate,
+			&duePrincipal, &dueInterest, &duePenalty, &dueOtherFee, &dueTotal,
+			&paidPrincipal, &paidInterest, &paidPenalty, &paidOtherFee, &paidTotal,
+			&plan.OverdueDays, &plan.Status,
+			&plan.CreatedBy, &plan.UpdatedBy, &plan.CreatedAt, &plan.UpdatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		plan.DuePrincipal, _ = decimal.NewFromString(duePrincipal)
+		plan.DueInterest, _ = decimal.NewFromString(dueInterest)
+		plan.DuePenalty, _ = decimal.NewFromString(duePenalty)
+		plan.DueOtherFee, _ = decimal.NewFromString(dueOtherFee)
+		plan.DueTotal, _ = decimal.NewFromString(dueTotal)
+		plan.PaidPrincipal, _ = decimal.NewFromString(paidPrincipal)
+		plan.PaidInterest, _ = decimal.NewFromString(paidInterest)
+		plan.PaidPenalty, _ = decimal.NewFromString(paidPenalty)
+		plan.PaidOtherFee, _ = decimal.NewFromString(paidOtherFee)
+		plan.PaidTotal, _ = decimal.NewFromString(paidTotal)
+
+		plans = append(plans, plan)
+	}
+
+	return plans, nil
 }
 
 // GetPlansByLoanNo 根据借据编号获取所有还款计划
@@ -950,16 +1021,17 @@ func (r *BatchJobRepository) GetDisbursedLoans() ([]model.Loan, error) {
 			total_interest, total_penalty, total_other_fee,
 			paid_principal, paid_interest, paid_penalty, paid_other_fee,
 			overdue_days, overdue_principal,
+			overdue_tier, collection_status, last_collection_date, collection_notes,
 			created_by, updated_by, created_at, updated_at
 		FROM loans WHERE status IN ('DISBURSED', 'OVERDUE')
 	`
-	
+
 	rows, err := r.db.Query(query)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	
+
 	var loans []model.Loan
 	for rows.Next() {
 		loan := model.Loan{}
@@ -967,22 +1039,24 @@ func (r *BatchJobRepository) GetDisbursedLoans() ([]model.Loan, error) {
 		var totalInterest, totalPenalty, totalOtherFee string
 		var paidPrincipal, paidInterest, paidPenalty, paidOtherFee string
 		var overduePrincipal string
-		var settlementDate, disbursementDate sql.NullTime
-		
+		var settlementDate, disbursementDate, lastCollectionDate sql.NullTime
+		var overdueTier, collectionStatus, collectionNotes sql.NullString
+
 		err := rows.Scan(
-			&loan.ID, &loan.LoanNo, &principal, &annualRate, &loan.TermMonths, 
+			&loan.ID, &loan.LoanNo, &principal, &annualRate, &loan.TermMonths,
 			&loan.RepaymentTypeCode, &loan.AllocationRuleCode,
 			&loan.ValueDate, &loan.FirstDueDate, &loan.MaturityDate, &settlementDate, &disbursementDate, &loan.Status,
 			&disbursedAmount, &remainingPrincipal,
 			&totalInterest, &totalPenalty, &totalOtherFee,
 			&paidPrincipal, &paidInterest, &paidPenalty, &paidOtherFee,
 			&loan.OverdueDays, &overduePrincipal,
+			&overdueTier, &collectionStatus, &lastCollectionDate, &collectionNotes,
 			&loan.CreatedBy, &loan.UpdatedBy, &loan.CreatedAt, &loan.UpdatedAt,
 		)
 		if err != nil {
 			return nil, err
 		}
-		
+
 		loan.Principal, _ = decimal.NewFromString(principal)
 		loan.AnnualRate, _ = decimal.NewFromString(annualRate)
 		loan.DisbursedAmount, _ = decimal.NewFromString(disbursedAmount)
@@ -995,17 +1069,29 @@ func (r *BatchJobRepository) GetDisbursedLoans() ([]model.Loan, error) {
 		loan.PaidPenalty, _ = decimal.NewFromString(paidPenalty)
 		loan.PaidOtherFee, _ = decimal.NewFromString(paidOtherFee)
 		loan.OverduePrincipal, _ = decimal.NewFromString(overduePrincipal)
-		
+
 		if settlementDate.Valid {
 			loan.SettlementDate = &settlementDate.Time
 		}
 		if disbursementDate.Valid {
 			loan.DisbursementDate = &disbursementDate.Time
 		}
-		
+		if overdueTier.Valid {
+			loan.OverdueTier = overdueTier.String
+		}
+		if collectionStatus.Valid {
+			loan.CollectionStatus = collectionStatus.String
+		}
+		if lastCollectionDate.Valid {
+			loan.LastCollectionDate = &lastCollectionDate.Time
+		}
+		if collectionNotes.Valid {
+			loan.CollectionNotes = collectionNotes.String
+		}
+
 		loans = append(loans, loan)
 	}
-	
+
 	return loans, nil
 }
 
