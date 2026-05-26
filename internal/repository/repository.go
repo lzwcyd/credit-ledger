@@ -630,17 +630,15 @@ func (r *DailyCalculationRepository) SettleDailyCalculations(ids []uint64, repay
 		return nil
 	}
 	
-	query := `
-		UPDATE daily_calculations 
-		SET is_settled = TRUE, settled_repayment_no = ?, updated_at = ?
-		WHERE id IN (?` + string(make([]byte, len(ids)-1)) + `)
-	`
-	
-	// 构建占位符
+	placeholders := "?"
 	for i := 1; i < len(ids); i++ {
-		query += ", ?"
+		placeholders += ", ?"
 	}
-	query += ")"
+	query := `
+		UPDATE daily_calculations
+		SET is_settled = TRUE, settled_repayment_no = ?, updated_at = ?
+		WHERE id IN (` + placeholders + `)
+	`
 	
 	// 构建参数
 	args := []interface{}{repaymentNo, time.Now()}

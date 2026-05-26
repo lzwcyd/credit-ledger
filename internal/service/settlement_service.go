@@ -57,13 +57,22 @@ func (s *LoanService) EarlySettlementTrial(req EarlySettlementTrialRequest) (*Ea
 	}
 
 	// 计算应还利息
-	accruedInterest := s.calculateInterest(loan, trialDate)
+	accruedInterest, err := s.calculateInterest(loan, trialDate)
+	if err != nil {
+		return nil, fmt.Errorf("failed to calculate interest: %w", err)
+	}
 
 	// 计算应还罚息
-	accruedPenalty := s.calculatePenalty(loan, trialDate)
+	accruedPenalty, err := s.calculatePenalty(loan, trialDate)
+	if err != nil {
+		return nil, fmt.Errorf("failed to calculate penalty: %w", err)
+	}
 
 	// 计算应还其他费用
-	unsettledOtherFee := s.calculateOtherFees(loan, trialDate)
+	unsettledOtherFee, err := s.calculateOtherFees(loan, trialDate)
+	if err != nil {
+		return nil, fmt.Errorf("failed to calculate other fees: %w", err)
+	}
 
 	// 计算提前结清手续费（基于剩余本金百分比）
 	earlySettlementFee := s.calculateEarlySettlementFee(loan)
@@ -165,6 +174,7 @@ func (s *LoanService) EarlySettlement(req EarlySettlementRequest) (*RepaymentRes
 		return nil, fmt.Errorf("loan not found after repayment: %w", err)
 	}
 
+	oldStatus := loan.Status
 	loan.Status = "REPAID"
 	now := time.Now()
 	loan.SettlementDate = &now
@@ -178,7 +188,7 @@ func (s *LoanService) EarlySettlement(req EarlySettlementRequest) (*RepaymentRes
 		LoanNo:       loan.LoanNo,
 		ChangeType:   "EARLY_SETTLEMENT",
 		FieldName:    "status",
-		OldValue:     "DISBURSED",
+		OldValue:     oldStatus,
 		NewValue:     "REPAID",
 		ChangeReason: "提前结清",
 		CreatedBy:    req.Operator,
@@ -313,9 +323,18 @@ func (s *LoanService) PartialRepaymentTrial(req PartialRepaymentTrialRequest) (*
 	}
 
 	// 计算各类待还金额
-	accruedInterest := s.calculateInterest(loan, trialDate)
-	accruedPenalty := s.calculatePenalty(loan, trialDate)
-	unsettledOtherFee := s.calculateOtherFees(loan, trialDate)
+	accruedInterest, err := s.calculateInterest(loan, trialDate)
+	if err != nil {
+		return nil, fmt.Errorf("failed to calculate interest: %w", err)
+	}
+	accruedPenalty, err := s.calculatePenalty(loan, trialDate)
+	if err != nil {
+		return nil, fmt.Errorf("failed to calculate penalty: %w", err)
+	}
+	unsettledOtherFee, err := s.calculateOtherFees(loan, trialDate)
+	if err != nil {
+		return nil, fmt.Errorf("failed to calculate other fees: %w", err)
+	}
 
 	// 按优先级分配
 	remaining := inputAmount

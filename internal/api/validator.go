@@ -33,13 +33,14 @@ func ValidateDateFormat(date string) error {
 	return nil
 }
 
+var loanNoPattern = regexp.MustCompile(`^[a-zA-Z0-9_-]{6,32}$`)
+
 // ValidateLoanNo 校验借据编号格式（字母数字，6-32位）
 func ValidateLoanNo(loanNo string) error {
 	if loanNo == "" {
 		return fmt.Errorf("借据编号不能为空")
 	}
-	matched, _ := regexp.MatchString(`^[a-zA-Z0-9_-]{6,32}$`, loanNo)
-	if !matched {
+	if !loanNoPattern.MatchString(loanNo) {
 		return fmt.Errorf("借据编号格式错误: %s，应为6-32位字母数字", loanNo)
 	}
 	return nil

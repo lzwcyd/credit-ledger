@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -55,7 +56,9 @@ func (r *Router) createLoan(w http.ResponseWriter, req *http.Request) {
 
 	loan, err := r.loanService.CreateLoan(createReq)
 	if err != nil {
-		InternalError(w, "创建借据失败: "+err.Error())
+		requestID := GetRequestID(req)
+		log.Printf("[request_id=%s] 创建借据失败: %v", requestID, err)
+		InternalError(w, "服务器内部错误")
 		return
 	}
 
@@ -108,7 +111,9 @@ func (r *Router) disburseLoan(w http.ResponseWriter, req *http.Request) {
 
 	loan, err := r.loanService.Disburse(disburseReq)
 	if err != nil {
-		InternalError(w, "放款失败: "+err.Error())
+		requestID := GetRequestID(req)
+		log.Printf("[request_id=%s] 放款失败: %v", requestID, err)
+		InternalError(w, "服务器内部错误")
 		return
 	}
 
@@ -136,7 +141,9 @@ func (r *Router) getRepaymentPlans(w http.ResponseWriter, req *http.Request) {
 
 	plans, err := r.loanService.GetPlansByLoanNo(loanNo)
 	if err != nil {
-		InternalError(w, "查询还款计划失败: "+err.Error())
+		requestID := GetRequestID(req)
+		log.Printf("[request_id=%s] 查询还款计划失败: %v", requestID, err)
+		InternalError(w, "服务器内部错误")
 		return
 	}
 

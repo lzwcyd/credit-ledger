@@ -8,11 +8,11 @@ import (
 
 // APIResponse 统一 API 响应格式
 type APIResponse struct {
-	Code      int         `json:"code"`                // 业务状态码，0=成功
-	Message   string      `json:"message"`             // 提示信息
-	Data      interface{} `json:"data,omitempty"`      // 业务数据
-	RequestID string      `json:"request_id,omitempty"` // 请求追踪 ID
-	Timestamp int64       `json:"timestamp"`           // 响应时间戳
+	Code      int         `json:"code"`
+	Message   string      `json:"message"`
+	Data      interface{} `json:"data,omitempty"`
+	RequestID string      `json:"request_id,omitempty"`
+	Timestamp int64       `json:"timestamp"`
 }
 
 // PaginatedData 分页数据包装
@@ -67,22 +67,22 @@ func Error(w http.ResponseWriter, httpStatus int, code int, message string) {
 	})
 }
 
-// BadRequest 400 请求参数错误
+// BadRequest 400
 func BadRequest(w http.ResponseWriter, message string) {
 	Error(w, http.StatusBadRequest, 400, message)
 }
 
-// NotFound 404 资源不存在
+// NotFound 404
 func NotFound(w http.ResponseWriter, message string) {
 	Error(w, http.StatusNotFound, 404, message)
 }
 
-// InternalError 500 服务器内部错误
+// InternalError 500
 func InternalError(w http.ResponseWriter, message string) {
 	Error(w, http.StatusInternalServerError, 500, message)
 }
 
-// Conflict 409 冲突
+// Conflict 409
 func Conflict(w http.ResponseWriter, message string) {
 	Error(w, http.StatusConflict, 409, message)
 }

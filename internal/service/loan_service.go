@@ -268,13 +268,22 @@ func (s *LoanService) RepaymentTrial(req RepaymentTrialRequest) (*RepaymentTrial
 	}
 	
 	// 计算应还利息
-	interestAmount := s.calculateInterest(loan, trialDate)
-	
+	interestAmount, err := s.calculateInterest(loan, trialDate)
+	if err != nil {
+		return nil, fmt.Errorf("failed to calculate interest: %w", err)
+	}
+
 	// 计算应还罚息
-	penaltyAmount := s.calculatePenalty(loan, trialDate)
-	
+	penaltyAmount, err := s.calculatePenalty(loan, trialDate)
+	if err != nil {
+		return nil, fmt.Errorf("failed to calculate penalty: %w", err)
+	}
+
 	// 计算应还其他费用
-	otherFeeAmount := s.calculateOtherFees(loan, trialDate)
+	otherFeeAmount, err := s.calculateOtherFees(loan, trialDate)
+	if err != nil {
+		return nil, fmt.Errorf("failed to calculate other fees: %w", err)
+	}
 	
 	// 构建明细
 	var details []TrialDetailItem
@@ -319,61 +328,61 @@ func (s *LoanService) RepaymentTrial(req RepaymentTrialRequest) (*RepaymentTrial
 }
 
 // calculateInterest 计算利息
-func (s *LoanService) calculateInterest(loan *model.Loan, trialDate time.Time) decimal.Decimal {
+func (s *LoanService) calculateInterest(loan *model.Loan, trialDate time.Time) (decimal.Decimal, error) {
 	// 获取未结清的利息记录
 	unsettledInterest, err := s.dailyCalcRepo.GetUnsettledByLoanNo(loan.LoanNo, "INTEREST")
 	if err != nil {
-		return decimal.Zero()
+		return decimal.Zero(), fmt.Errorf("failed to get unsettled interest for loan %s: %w", loan.LoanNo, err)
 	}
-	
+
 	// 计算累计利息
 	totalInterest := decimal.Zero()
 	for _, calc := range unsettledInterest {
 		totalInterest = totalInterest.Add(calc.Amount)
 	}
-	
-	return totalInterest
+
+	return totalInterest, nil
 }
 
 // calculatePenalty 计算罚息
-func (s *LoanService) calculatePenalty(loan *model.Loan, trialDate time.Time) decimal.Decimal {
+func (s *LoanService) calculatePenalty(loan *model.Loan, trialDate time.Time) (decimal.Decimal, error) {
 	// 获取未结清的罚息记录
 	unsettledPenalty, err := s.dailyCalcRepo.GetUnsettledByLoanNo(loan.LoanNo, "PENALTY")
 	if err != nil {
-		return decimal.Zero()
+		return decimal.Zero(), fmt.Errorf("failed to get unsettled penalty for loan %s: %w", loan.LoanNo, err)
 	}
-	
+
 	// 计算累计罚息
 	totalPenalty := decimal.Zero()
 	for _, calc := range unsettledPenalty {
 		totalPenalty = totalPenalty.Add(calc.Amount)
 	}
-	
-	return totalPenalty
+
+	return totalPenalty, nil
 }
 
 // calculateOtherFees 计算其他费用
-func (s *LoanService) calculateOtherFees(loan *model.Loan, trialDate time.Time) decimal.Decimal {
+func (s *LoanService) calculateOtherFees(loan *model.Loan, trialDate time.Time) (decimal.Decimal, error) {
 	// 获取所有未还清的其他费用
 	plans, err := s.planRepo.GetPlansByLoanNo(loan.LoanNo)
 	if err != nil {
-		return decimal.Zero()
+		return decimal.Zero(), fmt.Errorf("failed to get plans for loan %s: %w", loan.LoanNo, err)
 	}
-	
+
 	totalOtherFee := decimal.Zero()
 	for _, plan := range plans {
 		otherFees, err := s.planOtherFeeRepo.GetUnpaidByPlanID(plan.ID)
 		if err != nil {
-			continue
+			return decimal.Zero(), fmt.Errorf("failed to get unpaid fees for plan %d: %w", plan.ID, err)
 		}
-		
+
 		for _, fee := range otherFees {
 			remaining := fee.DueAmount.Sub(fee.PaidAmount)
 			totalOtherFee = totalOtherFee.Add(remaining)
 		}
 	}
-	
-	return totalOtherFee
+
+	return totalOtherFee, nil
 }
 
 // getOtherFeeDetails 获取其他费用明细
@@ -446,7 +455,10 @@ func (s *LoanService) Repayment(req RepaymentRequest) (*RepaymentResponse, error
 		}
 		
 		// 获取该类型待还金额
-		dueAmount := s.getDueAmountByType(loan, rule.AllocationType, trialDate)
+		dueAmount, err := s.getDueAmountByType(loan, rule.AllocationType, trialDate)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get due amount for %s: %w", rule.AllocationType, err)
+		}
 		if dueAmount.IsZero() {
 			continue
 		}
@@ -484,7 +496,7 @@ func (s *LoanService) Repayment(req RepaymentRequest) (*RepaymentResponse, error
 		LoanNo:             loan.LoanNo,
 		RepaymentType:      req.RepaymentType,
 		Amount:             amount,
-		PrincipalAmount:    s.getAmountByCategory(details, "INTEREST"),
+		PrincipalAmount:    s.getAmountByCategory(details, "PRINCIPAL"),
 		InterestAmount:     s.getAmountByCategory(details, "INTEREST"),
 		PenaltyAmount:      s.getAmountByCategory(details, "PENALTY"),
 		OtherFeeAmount:     s.getAmountByCategory(details, "OTHER_FEE"),
@@ -505,7 +517,9 @@ func (s *LoanService) Repayment(req RepaymentRequest) (*RepaymentResponse, error
 	}
 	
 	// 更新借据
-	s.updateLoanAfterRepayment(loan, amount, details, req.CreatedBy)
+	if err := s.updateLoanAfterRepayment(loan, amount, details, req.CreatedBy); err != nil {
+		return nil, fmt.Errorf("failed to update loan after repayment: %w", err)
+	}
 	
 	return &RepaymentResponse{
 		RepaymentNo: repaymentNo,
@@ -517,7 +531,7 @@ func (s *LoanService) Repayment(req RepaymentRequest) (*RepaymentResponse, error
 }
 
 // getDueAmountByType 获取指定类型的待还金额
-func (s *LoanService) getDueAmountByType(loan *model.Loan, allocationType string, trialDate time.Time) decimal.Decimal {
+func (s *LoanService) getDueAmountByType(loan *model.Loan, allocationType string, trialDate time.Time) (decimal.Decimal, error) {
 	switch allocationType {
 	case "PENALTY":
 		return s.calculatePenalty(loan, trialDate)
@@ -526,9 +540,9 @@ func (s *LoanService) getDueAmountByType(loan *model.Loan, allocationType string
 	case "OTHER_FEE":
 		return s.calculateOtherFees(loan, trialDate)
 	case "PRINCIPAL":
-		return loan.RemainingPrincipal
+		return loan.RemainingPrincipal, nil
 	default:
-		return decimal.Zero()
+		return decimal.Zero(), nil
 	}
 }
 
@@ -593,7 +607,10 @@ func (s *LoanService) updateLoanAfterRepayment(loan *model.Loan, amount decimal.
 	}
 	
 	// 检查是否结清
-	if loan.RemainingPrincipal.IsZero() {
+	if loan.RemainingPrincipal.IsZero() &&
+		loan.TotalInterest.Sub(loan.PaidInterest).IsZero() &&
+		loan.TotalPenalty.Sub(loan.PaidPenalty).IsZero() &&
+		loan.TotalOtherFee.Sub(loan.PaidOtherFee).IsZero() {
 		now := time.Now()
 		loan.Status = "REPAID"
 		loan.SettlementDate = &now
