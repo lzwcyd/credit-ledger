@@ -184,7 +184,9 @@ func (s *LoanService) EarlySettlement(req EarlySettlementRequest) (*RepaymentRes
 		CreatedBy:    req.Operator,
 		UpdatedBy:    req.Operator,
 	}
-	s.loanRepo.CreateLoanChange(change)
+	if err := s.loanRepo.CreateLoanChange(change); err != nil {
+		return nil, fmt.Errorf("failed to create loan change: %w", err)
+	}
 
 	// 将所有未结清的计划标记为结清
 	plans, err := s.planRepo.GetPlansByLoanNo(req.LoanNo)
@@ -193,7 +195,9 @@ func (s *LoanService) EarlySettlement(req EarlySettlementRequest) (*RepaymentRes
 			if plans[i].Status != "PAID" {
 				plans[i].Status = "PAID"
 				plans[i].UpdatedBy = req.Operator
-				s.planRepo.UpdatePlan(&plans[i])
+				if err := s.planRepo.UpdatePlan(&plans[i]); err != nil {
+					return nil, fmt.Errorf("failed to update plan %d: %w", plans[i].ID, err)
+				}
 			}
 		}
 	}

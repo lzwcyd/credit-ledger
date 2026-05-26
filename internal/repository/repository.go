@@ -2,6 +2,7 @@ package repository
 
 import (
 	"database/sql"
+	"fmt"
 	"time"
 	"github.com/yourorg/credit-ledger/internal/model"
 	"github.com/yourorg/credit-ledger/pkg/decimal"
@@ -92,19 +93,43 @@ func (r *LoanRepository) GetLoanByNo(loanNo string) (*model.Loan, error) {
 	}
 	
 	// 解析 decimal
-	loan.Principal, _ = decimal.NewFromString(principal)
-	loan.AnnualRate, _ = decimal.NewFromString(annualRate)
-	loan.DisbursedAmount, _ = decimal.NewFromString(disbursedAmount)
-	loan.RemainingPrincipal, _ = decimal.NewFromString(remainingPrincipal)
-	loan.TotalInterest, _ = decimal.NewFromString(totalInterest)
-	loan.TotalPenalty, _ = decimal.NewFromString(totalPenalty)
-	loan.TotalOtherFee, _ = decimal.NewFromString(totalOtherFee)
-	loan.PaidPrincipal, _ = decimal.NewFromString(paidPrincipal)
-	loan.PaidInterest, _ = decimal.NewFromString(paidInterest)
-	loan.PaidPenalty, _ = decimal.NewFromString(paidPenalty)
-	loan.PaidOtherFee, _ = decimal.NewFromString(paidOtherFee)
-	loan.OverduePrincipal, _ = decimal.NewFromString(overduePrincipal)
-	
+	if loan.Principal, err = decimal.NewFromString(principal); err != nil {
+		return nil, fmt.Errorf("failed to parse principal: %w", err)
+	}
+	if loan.AnnualRate, err = decimal.NewFromString(annualRate); err != nil {
+		return nil, fmt.Errorf("failed to parse annual_rate: %w", err)
+	}
+	if loan.DisbursedAmount, err = decimal.NewFromString(disbursedAmount); err != nil {
+		return nil, fmt.Errorf("failed to parse disbursed_amount: %w", err)
+	}
+	if loan.RemainingPrincipal, err = decimal.NewFromString(remainingPrincipal); err != nil {
+		return nil, fmt.Errorf("failed to parse remaining_principal: %w", err)
+	}
+	if loan.TotalInterest, err = decimal.NewFromString(totalInterest); err != nil {
+		return nil, fmt.Errorf("failed to parse total_interest: %w", err)
+	}
+	if loan.TotalPenalty, err = decimal.NewFromString(totalPenalty); err != nil {
+		return nil, fmt.Errorf("failed to parse total_penalty: %w", err)
+	}
+	if loan.TotalOtherFee, err = decimal.NewFromString(totalOtherFee); err != nil {
+		return nil, fmt.Errorf("failed to parse total_other_fee: %w", err)
+	}
+	if loan.PaidPrincipal, err = decimal.NewFromString(paidPrincipal); err != nil {
+		return nil, fmt.Errorf("failed to parse paid_principal: %w", err)
+	}
+	if loan.PaidInterest, err = decimal.NewFromString(paidInterest); err != nil {
+		return nil, fmt.Errorf("failed to parse paid_interest: %w", err)
+	}
+	if loan.PaidPenalty, err = decimal.NewFromString(paidPenalty); err != nil {
+		return nil, fmt.Errorf("failed to parse paid_penalty: %w", err)
+	}
+	if loan.PaidOtherFee, err = decimal.NewFromString(paidOtherFee); err != nil {
+		return nil, fmt.Errorf("failed to parse paid_other_fee: %w", err)
+	}
+	if loan.OverduePrincipal, err = decimal.NewFromString(overduePrincipal); err != nil {
+		return nil, fmt.Errorf("failed to parse overdue_principal: %w", err)
+	}
+
 	if settlementDate.Valid {
 		loan.SettlementDate = &settlementDate.Time
 	}
@@ -250,17 +275,37 @@ func (r *PlanRepository) GetPlanByLoanNoAndPeriod(loanNo string, period int) (*m
 		return nil, err
 	}
 	
-	plan.DuePrincipal, _ = decimal.NewFromString(duePrincipal)
-	plan.DueInterest, _ = decimal.NewFromString(dueInterest)
-	plan.DuePenalty, _ = decimal.NewFromString(duePenalty)
-	plan.DueOtherFee, _ = decimal.NewFromString(dueOtherFee)
-	plan.DueTotal, _ = decimal.NewFromString(dueTotal)
-	plan.PaidPrincipal, _ = decimal.NewFromString(paidPrincipal)
-	plan.PaidInterest, _ = decimal.NewFromString(paidInterest)
-	plan.PaidPenalty, _ = decimal.NewFromString(paidPenalty)
-	plan.PaidOtherFee, _ = decimal.NewFromString(paidOtherFee)
-	plan.PaidTotal, _ = decimal.NewFromString(paidTotal)
-	
+	if plan.DuePrincipal, err = decimal.NewFromString(duePrincipal); err != nil {
+		return nil, fmt.Errorf("failed to parse due_principal: %w", err)
+	}
+	if plan.DueInterest, err = decimal.NewFromString(dueInterest); err != nil {
+		return nil, fmt.Errorf("failed to parse due_interest: %w", err)
+	}
+	if plan.DuePenalty, err = decimal.NewFromString(duePenalty); err != nil {
+		return nil, fmt.Errorf("failed to parse due_penalty: %w", err)
+	}
+	if plan.DueOtherFee, err = decimal.NewFromString(dueOtherFee); err != nil {
+		return nil, fmt.Errorf("failed to parse due_other_fee: %w", err)
+	}
+	if plan.DueTotal, err = decimal.NewFromString(dueTotal); err != nil {
+		return nil, fmt.Errorf("failed to parse due_total: %w", err)
+	}
+	if plan.PaidPrincipal, err = decimal.NewFromString(paidPrincipal); err != nil {
+		return nil, fmt.Errorf("failed to parse paid_principal: %w", err)
+	}
+	if plan.PaidInterest, err = decimal.NewFromString(paidInterest); err != nil {
+		return nil, fmt.Errorf("failed to parse paid_interest: %w", err)
+	}
+	if plan.PaidPenalty, err = decimal.NewFromString(paidPenalty); err != nil {
+		return nil, fmt.Errorf("failed to parse paid_penalty: %w", err)
+	}
+	if plan.PaidOtherFee, err = decimal.NewFromString(paidOtherFee); err != nil {
+		return nil, fmt.Errorf("failed to parse paid_other_fee: %w", err)
+	}
+	if plan.PaidTotal, err = decimal.NewFromString(paidTotal); err != nil {
+		return nil, fmt.Errorf("failed to parse paid_total: %w", err)
+	}
+
 	return plan, nil
 }
 
