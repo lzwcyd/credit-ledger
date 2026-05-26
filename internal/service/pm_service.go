@@ -30,6 +30,9 @@ func (s *LoanService) UpdateCollectionStatus(req UpdateCollectionStatusRequest) 
 	}
 
 	oldStatus := loan.CollectionStatus
+	if req.Status != "NORMAL" && req.Status != "IN_COLLECTION" && req.Status != "LEGAL" && req.Status != "WRITTEN_OFF" {
+		return nil, fmt.Errorf("无效的催收状态: %s", req.Status)
+	}
 	loan.CollectionStatus = req.Status
 	loan.CollectionNotes = req.Notes
 	now := time.Now()
@@ -51,7 +54,9 @@ func (s *LoanService) UpdateCollectionStatus(req UpdateCollectionStatusRequest) 
 		CreatedBy:    req.Operator,
 		UpdatedBy:    req.Operator,
 	}
-	s.loanRepo.CreateLoanChange(change)
+	if err := s.loanRepo.CreateLoanChange(change); err != nil {
+		return nil, fmt.Errorf("记录变更失败: %w", err)
+	}
 
 	return loan, nil
 }
@@ -89,6 +94,10 @@ func (s *LoanService) ApplyPenaltyWaiver(req PenaltyWaiverRequest) (*PenaltyWaiv
 		return nil, fmt.Errorf("借据状态 %s 不允许减免", loan.Status)
 	}
 
+	if req.WaiverType != "PENALTY" && req.WaiverType != "INTEREST" && req.WaiverType != "OTHER_FEE" {
+		return nil, fmt.Errorf("无效的减免类型: %s", req.WaiverType)
+	}
+
 	// 获取原始金额
 	var originalAmount decimal.Decimal
 	switch req.WaiverType {
@@ -98,11 +107,13 @@ func (s *LoanService) ApplyPenaltyWaiver(req PenaltyWaiverRequest) (*PenaltyWaiv
 		originalAmount = loan.TotalInterest.Sub(loan.PaidInterest)
 	case "OTHER_FEE":
 		originalAmount = loan.TotalOtherFee.Sub(loan.PaidOtherFee)
-	default:
-		return nil, fmt.Errorf("不支持的减免类型: %s", req.WaiverType)
 	}
 
 	waiverAmount := decimal.NewFromFloat(req.WaiverAmount)
+
+	if waiverAmount.Lte(decimal.Zero()) {
+		return nil, fmt.Errorf("减免金额必须大于0")
+	}
 
 	// 校验减免金额不超过原始金额
 	if waiverAmount.Gt(originalAmount) {
@@ -110,7 +121,11 @@ func (s *LoanService) ApplyPenaltyWaiver(req PenaltyWaiverRequest) (*PenaltyWaiv
 	}
 
 	// 生成减免编号
-	waiverNo := fmt.Sprintf("WV%s%s", time.Now().Format("20060102150405"), loan.LoanNo[len(loan.LoanNo)-4:])
+	suffix := loan.LoanNo
+	if len(suffix) > 4 {
+		suffix = suffix[len(suffix)-4:]
+	}
+	waiverNo := fmt.Sprintf("WV%s%s", time.Now().Format("20060102150405"), suffix)
 
 	// 直接应用减免（简化流程，实际可能需要审批）
 	// 更新借据的已还金额
@@ -179,7 +194,11 @@ func (s *LoanService) ApplyExtension(req ExtensionRequest) (*ExtensionResponse, 
 	newMaturity := originalMaturity.AddDate(0, req.ExtensionMonths, req.ExtensionDays)
 
 	// 生成展期编号
-	extensionNo := fmt.Sprintf("EX%s%s", time.Now().Format("20060102150405"), loan.LoanNo[len(loan.LoanNo)-4:])
+	suffix := loan.LoanNo
+	if len(suffix) > 4 {
+		suffix = suffix[len(suffix)-4:]
+	}
+	extensionNo := fmt.Sprintf("EX%s%s", time.Now().Format("20060102150405"), suffix)
 
 	// 更新借据到期日
 	oldMaturity := loan.MaturityDate
@@ -201,7 +220,9 @@ func (s *LoanService) ApplyExtension(req ExtensionRequest) (*ExtensionResponse, 
 		CreatedBy:    req.Operator,
 		UpdatedBy:    req.Operator,
 	}
-	s.loanRepo.CreateLoanChange(change)
+	if err := s.loanRepo.CreateLoanChange(change); err != nil {
+		return nil, fmt.Errorf("记录变更失败: %w", err)
+	}
 
 	return &ExtensionResponse{
 		ExtensionNo:      extensionNo,
@@ -239,6 +260,13 @@ func (s *LoanService) ApplyWriteOff(req WriteOffRequest) (*WriteOffResponse, err
 		return nil, fmt.Errorf("借据不存在: %w", err)
 	}
 
+	if loan.Status == "WRITTEN_OFF" {
+		return nil, fmt.Errorf("借据已核销，不可重复核销")
+	}
+	if loan.Status == "REPAID" {
+		return nil, fmt.Errorf("借据已结清，不可核销")
+	}
+
 	// 计算核销金额 = 剩余本金 + 未还利息 + 未还罚息
 	principalAmount := loan.RemainingPrincipal
 	interestAmount := loan.TotalInterest.Sub(loan.PaidInterest)
@@ -250,9 +278,14 @@ func (s *LoanService) ApplyWriteOff(req WriteOffRequest) (*WriteOffResponse, err
 	}
 
 	// 生成核销编号
-	writeOffNo := fmt.Sprintf("WO%s%s", time.Now().Format("20060102150405"), loan.LoanNo[len(loan.LoanNo)-4:])
+	suffix := loan.LoanNo
+	if len(suffix) > 4 {
+		suffix = suffix[len(suffix)-4:]
+	}
+	writeOffNo := fmt.Sprintf("WO%s%s", time.Now().Format("20060102150405"), suffix)
 
 	// 更新借据状态
+	oldStatus := loan.Status
 	loan.Status = "WRITTEN_OFF"
 	loan.CollectionStatus = model.CollectionStatusWrittenOff
 	// 将所有未还金额标记为已还（核销）
@@ -273,21 +306,28 @@ func (s *LoanService) ApplyWriteOff(req WriteOffRequest) (*WriteOffResponse, err
 		LoanNo:       loan.LoanNo,
 		ChangeType:   "WRITE_OFF",
 		FieldName:    "status",
-		OldValue:     loan.Status,
+		OldValue:     oldStatus,
 		NewValue:     "WRITTEN_OFF",
 		ChangeReason: fmt.Sprintf("坏账核销: %s，核销金额: %s", req.Reason, writeOffAmount),
 		CreatedBy:    req.Operator,
 		UpdatedBy:    req.Operator,
 	}
-	s.loanRepo.CreateLoanChange(change)
+	if err := s.loanRepo.CreateLoanChange(change); err != nil {
+		return nil, fmt.Errorf("记录变更失败: %w", err)
+	}
 
 	// 将所有未结清计划标记为结清
-	plans, _ := s.planRepo.GetPlansByLoanNo(req.LoanNo)
+	plans, err := s.planRepo.GetPlansByLoanNo(req.LoanNo)
+	if err != nil {
+		return nil, fmt.Errorf("查询还款计划失败: %w", err)
+	}
 	for i := range plans {
 		if plans[i].Status != "PAID" {
 			plans[i].Status = "PAID"
 			plans[i].UpdatedBy = req.Operator
-			s.planRepo.UpdatePlan(&plans[i])
+			if err := s.planRepo.UpdatePlan(&plans[i]); err != nil {
+				return nil, fmt.Errorf("更新还款计划失败: %w", err)
+			}
 		}
 	}
 
