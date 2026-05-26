@@ -690,6 +690,50 @@ func (r *FeeConfigRepository) GetAllActive() ([]model.FeeConfig, error) {
 	return configs, nil
 }
 
+// GetByTriggerType 根据触发类型获取费项配置
+func (r *FeeConfigRepository) GetByTriggerType(triggerType string) ([]model.FeeConfig, error) {
+	query := `
+		SELECT id, code, name, calc_type, calc_base, value, trigger_type,
+			is_daily_accumulate, fee_category, min_amount, max_amount, is_active,
+			created_by, updated_by, created_at, updated_at
+		FROM fee_configs WHERE trigger_type = ? AND is_active = TRUE
+	`
+
+	rows, err := r.db.Query(query, triggerType)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var configs []model.FeeConfig
+	for rows.Next() {
+		config := model.FeeConfig{}
+		var value, minAmount string
+		var maxAmount sql.NullString
+
+		err := rows.Scan(
+			&config.ID, &config.Code, &config.Name, &config.CalcType, &config.CalcBase,
+			&value, &config.TriggerType, &config.IsDailyAccumulate, &config.FeeCategory,
+			&minAmount, &maxAmount, &config.IsActive,
+			&config.CreatedBy, &config.UpdatedBy, &config.CreatedAt, &config.UpdatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		config.Value, _ = decimal.NewFromString(value)
+		config.MinAmount, _ = decimal.NewFromString(minAmount)
+		if maxAmount.Valid {
+			maxVal, _ := decimal.NewFromString(maxAmount.String)
+			config.MaxAmount = &maxVal
+		}
+
+		configs = append(configs, config)
+	}
+
+	return configs, nil
+}
+
 // GetByCode 根据编码获取费项配置
 func (r *FeeConfigRepository) GetByCode(code string) (*model.FeeConfig, error) {
 	query := `

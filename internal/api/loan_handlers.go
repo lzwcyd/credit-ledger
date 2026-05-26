@@ -104,14 +104,119 @@ func (r *Router) makeRepayment(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
-	
+
 	response, err := r.loanService.Repayment(repayReq)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(response)
+}
+
+// earlySettlementTrial 提前结清试算
+func (r *Router) earlySettlementTrial(w http.ResponseWriter, req *http.Request) {
+	vars := mux.Vars(req)
+	loanNo := vars["loan_no"]
+
+	var trialReq service.EarlySettlementTrialRequest
+	if err := json.NewDecoder(req.Body).Decode(&trialReq); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	trialReq.LoanNo = loanNo
+	response, err := r.loanService.EarlySettlementTrial(trialReq)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
+// earlySettlement 提前结清入账
+func (r *Router) earlySettlement(w http.ResponseWriter, req *http.Request) {
+	vars := mux.Vars(req)
+	loanNo := vars["loan_no"]
+
+	var settleReq service.EarlySettlementRequest
+	if err := json.NewDecoder(req.Body).Decode(&settleReq); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	settleReq.LoanNo = loanNo
+	response, err := r.loanService.EarlySettlement(settleReq)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(response)
+}
+
+// partialRepaymentTrial 部分还款试算
+func (r *Router) partialRepaymentTrial(w http.ResponseWriter, req *http.Request) {
+	vars := mux.Vars(req)
+	loanNo := vars["loan_no"]
+
+	var trialReq service.PartialRepaymentTrialRequest
+	if err := json.NewDecoder(req.Body).Decode(&trialReq); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	trialReq.LoanNo = loanNo
+	response, err := r.loanService.PartialRepaymentTrial(trialReq)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
+// partialRepayment 部分还款入账
+func (r *Router) partialRepayment(w http.ResponseWriter, req *http.Request) {
+	vars := mux.Vars(req)
+	loanNo := vars["loan_no"]
+
+	var repayReq service.RepaymentRequest
+	if err := json.NewDecoder(req.Body).Decode(&repayReq); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	repayReq.LoanNo = loanNo
+	response, err := r.loanService.PartialRepayment(repayReq)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(response)
+}
+
+// getPlanSummary 获取还款计划汇总
+func (r *Router) getPlanSummary(w http.ResponseWriter, req *http.Request) {
+	vars := mux.Vars(req)
+	loanNo := vars["loan_no"]
+
+	summary, err := r.loanService.GetPlanSummary(loanNo)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(summary)
 }

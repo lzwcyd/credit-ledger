@@ -1,0 +1,879 @@
+openapi: 3.0.3
+info:
+  title: 信贷账务系统 API
+  description: |
+    开源信贷账务系统，支持放款试算/入账、还款试算/入账、还款计划查询、按日计息，
+    支持不同还款类型（等额本息、等额本金、先息后本、一次性还本付息），
+    支持提前结清、部分还款等标准逻辑，以及完备的费率费用计算体系。
+  version: 1.0.0
+  contact:
+    name: Credit Ledger Team
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:8080
+    description: 本地开发环境
+
+paths:
+  /health:
+    get:
+      summary: 健康检查
+      operationId: healthCheck
+      tags:
+        - 系统
+      responses:
+        '200':
+          description: 系统健康
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: healthy
+
+  # =====================================================
+  # 借据管理
+  # =====================================================
+
+  /api/v1/loans:
+    post:
+      summary: 创建借据
+      operationId: createLoan
+      tags:
+        - 借据
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateLoanRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Loan'
+        '400':
+          description: 请求参数错误
+        '500':
+          description: 服务器内部错误
+
+  /api/v1/loans/{loan_no}:
+    get:
+      summary: 获取借据详情
+      operationId: getLoan
+      tags:
+        - 借据
+      parameters:
+        - $ref: '#/components/parameters/LoanNo'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Loan'
+        '404':
+          description: 借据不存在
+
+  /api/v1/loans/{loan_no}/disburse:
+    post:
+      summary: 放款
+      operationId: disburseLoan
+      tags:
+        - 借据
+      parameters:
+        - $ref: '#/components/parameters/LoanNo'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DisburseRequest'
+      responses:
+        '200':
+          description: 放款成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Loan'
+        '400':
+          description: 请求参数错误或借据状态不允许放款
+
+  # =====================================================
+  # 还款计划
+  # =====================================================
+
+  /api/v1/loans/{loan_no}/plans:
+    get:
+      summary: 获取还款计划列表
+      operationId: getRepaymentPlans
+      tags:
+        - 还款计划
+      parameters:
+        - $ref: '#/components/parameters/LoanNo'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Plan'
+
+  /api/v1/loans/{loan_no}/plans/summary:
+    get:
+      summary: 获取还款计划汇总
+      description: |
+        获取还款计划的汇总信息，包括各期统计、已还/待还金额汇总、
+        下期还款日及金额等。
+      operationId: getPlanSummary
+      tags:
+        - 还款计划
+      parameters:
+        - $ref: '#/components/parameters/LoanNo'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanSummary'
+        '404':
+          description: 借据不存在
+
+  # =====================================================
+  # 还款
+  # =====================================================
+
+  /api/v1/repayments/trial:
+    post:
+      summary: 还款试算
+      description: |
+        根据试算日期计算应还金额，包括利息、罚息、其他费用等。
+        支持指定试算基准日期（trial_date），不落库，仅计算。
+      operationId: repaymentTrial
+      tags:
+        - 还款
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RepaymentTrialRequest'
+      responses:
+        '200':
+          description: 试算成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RepaymentTrialResponse'
+
+  /api/v1/repayments:
+    post:
+      summary: 还款入账
+      description: |
+        按照配置的分配规则，将还款金额分配到各类费用（罚息 > 其他费用 > 利息 > 本金）。
+        支持历史入账（is_backdated + booking_date）。
+      operationId: makeRepayment
+      tags:
+        - 还款
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RepaymentRequest'
+      responses:
+        '201':
+          description: 入账成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RepaymentResponse'
+
+  # =====================================================
+  # 提前结清
+  # =====================================================
+
+  /api/v1/loans/{loan_no}/early-settlement/trial:
+    post:
+      summary: 提前结清试算
+      description: |
+        计算提前结清应还的总金额，包括：剩余本金、应计利息、应计罚息、
+        未结清其他费用、提前结清手续费。
+      operationId: earlySettlementTrial
+      tags:
+        - 提前结清
+      parameters:
+        - $ref: '#/components/parameters/LoanNo'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EarlySettlementTrialRequest'
+      responses:
+        '200':
+          description: 试算成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EarlySettlementTrialResponse'
+        '400':
+          description: 借据状态不允许提前结清
+
+  /api/v1/loans/{loan_no}/early-settlement:
+    post:
+      summary: 提前结清入账
+      description: |
+        执行提前结清操作，按试算金额入账，并将借据状态更新为 REPAID，
+        同时将所有未结清的还款计划标记为 PAID。
+      operationId: earlySettlement
+      tags:
+        - 提前结清
+      parameters:
+        - $ref: '#/components/parameters/LoanNo'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EarlySettlementRequest'
+      responses:
+        '201':
+          description: 结清成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RepaymentResponse'
+        '400':
+          description: 借据状态不允许提前结清或金额不足
+
+  # =====================================================
+  # 部分还款
+  # =====================================================
+
+  /api/v1/loans/{loan_no}/partial-repayment/trial:
+    post:
+      summary: 部分还款试算
+      description: |
+        计算指定还款金额按分配规则的分配结果，展示各类费用的分配金额
+        和还款后的剩余金额。
+      operationId: partialRepaymentTrial
+      tags:
+        - 部分还款
+      parameters:
+        - $ref: '#/components/parameters/LoanNo'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PartialRepaymentTrialRequest'
+      responses:
+        '200':
+          description: 试算成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PartialRepaymentTrialResponse'
+
+  /api/v1/loans/{loan_no}/partial-repayment:
+    post:
+      summary: 部分还款入账
+      description: |
+        执行部分还款操作，按分配规则将金额分配到各类费用。
+        如果本金还清，自动将借据状态更新为 REPAID。
+      operationId: partialRepayment
+      tags:
+        - 部分还款
+      parameters:
+        - $ref: '#/components/parameters/LoanNo'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RepaymentRequest'
+      responses:
+        '201':
+          description: 入账成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RepaymentResponse'
+
+# =====================================================
+# 组件定义
+# =====================================================
+
+components:
+  parameters:
+    LoanNo:
+      name: loan_no
+      in: path
+      required: true
+      description: 借据编号
+      schema:
+        type: string
+        example: LOAN20260001
+
+  schemas:
+    # =====================================================
+    # 借据
+    # =====================================================
+
+    CreateLoanRequest:
+      type: object
+      required:
+        - loan_no
+        - principal
+        - annual_rate
+        - term_months
+        - repayment_type_code
+        - value_date
+        - first_due_date
+        - maturity_date
+      properties:
+        loan_no:
+          type: string
+          description: 借据编号
+          example: LOAN20260001
+        principal:
+          type: number
+          format: double
+          description: 贷款本金
+          example: 100000
+        annual_rate:
+          type: number
+          format: double
+          description: 年利率（小数表示，如 0.06 表示 6%）
+          example: 0.06
+        term_months:
+          type: integer
+          description: 贷款期限（月）
+          example: 12
+        repayment_type_code:
+          type: string
+          description: 还款类型编码
+          enum:
+            - EQUAL_INSTALLMENT    # 等额本息
+            - EQUAL_PRINCIPAL      # 等额本金
+            - INTEREST_FIRST       # 先息后本
+            - BULLET               # 一次性还本付息
+          example: EQUAL_INSTALLMENT
+        value_date:
+          type: string
+          format: date
+          description: 起息日
+          example: "2026-01-01"
+        first_due_date:
+          type: string
+          format: date
+          description: 首期还款日
+          example: "2026-02-01"
+        maturity_date:
+          type: string
+          format: date
+          description: 到期日
+          example: "2027-01-01"
+        created_by:
+          type: string
+          description: 创建人
+          example: system
+
+    DisburseRequest:
+      type: object
+      required:
+        - disburse_date
+        - disburse_amount
+      properties:
+        disburse_date:
+          type: string
+          format: date
+          description: 放款日期
+          example: "2026-01-01"
+        disburse_amount:
+          type: number
+          format: double
+          description: 放款金额
+          example: 100000
+        created_by:
+          type: string
+          description: 操作人
+          example: system
+
+    Loan:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        loan_no:
+          type: string
+          example: LOAN20260001
+        principal:
+          type: string
+          description: 贷款本金
+        annual_rate:
+          type: string
+          description: 年利率
+        term_months:
+          type: integer
+        repayment_type_code:
+          type: string
+        status:
+          type: string
+          enum:
+            - PENDING
+            - DISBURSED
+            - OVERDUE
+            - REPAID
+        disbursed_amount:
+          type: string
+          description: 已放款金额
+        remaining_principal:
+          type: string
+          description: 剩余本金
+        paid_principal:
+          type: string
+          description: 已还本金
+        paid_interest:
+          type: string
+          description: 已还利息
+        paid_penalty:
+          type: string
+          description: 已还罚息
+        paid_other_fee:
+          type: string
+          description: 已还其他费用
+        overdue_days:
+          type: integer
+          description: 逾期天数
+        settlement_date:
+          type: string
+          format: date-time
+          nullable: true
+          description: 结清日期
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    # =====================================================
+    # 还款计划
+    # =====================================================
+
+    Plan:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        loan_no:
+          type: string
+        period:
+          type: integer
+          description: 期数
+        due_date:
+          type: string
+          format: date
+          description: 到期日
+        due_principal:
+          type: string
+          description: 应还本金
+        due_interest:
+          type: string
+          description: 应还利息
+        due_penalty:
+          type: string
+          description: 应还罚息
+        due_other_fee:
+          type: string
+          description: 应还其他费用
+        due_total:
+          type: string
+          description: 应还总额
+        paid_principal:
+          type: string
+          description: 已还本金
+        paid_interest:
+          type: string
+          description: 已还利息
+        paid_penalty:
+          type: string
+          description: 已还罚息
+        paid_other_fee:
+          type: string
+          description: 已还其他费用
+        paid_total:
+          type: string
+          description: 已还总额
+        overdue_days:
+          type: integer
+          description: 逾期天数
+        status:
+          type: string
+          enum:
+            - PENDING
+            - PARTIAL
+            - PAID
+            - OVERDUE
+
+    PlanSummary:
+      type: object
+      properties:
+        loan_no:
+          type: string
+        total_periods:
+          type: integer
+          description: 总期数
+        paid_periods:
+          type: integer
+          description: 已还期数
+        overdue_periods:
+          type: integer
+          description: 逾期期数
+        pending_periods:
+          type: integer
+          description: 待还期数
+        total_principal:
+          type: string
+          description: 总本金
+        total_interest:
+          type: string
+          description: 总利息
+        paid_principal:
+          type: string
+          description: 已还本金
+        paid_interest:
+          type: string
+          description: 已还利息
+        remaining_principal:
+          type: string
+          description: 剩余本金
+        next_due_date:
+          type: string
+          format: date
+          description: 下期还款日
+        next_due_amount:
+          type: string
+          description: 下期应还金额
+        plans:
+          type: array
+          items:
+            $ref: '#/components/schemas/Plan'
+
+    # =====================================================
+    # 还款
+    # =====================================================
+
+    RepaymentTrialRequest:
+      type: object
+      required:
+        - loan_no
+        - trial_date
+      properties:
+        loan_no:
+          type: string
+          description: 借据编号
+          example: LOAN20260001
+        trial_date:
+          type: string
+          format: date
+          description: 试算基准日期
+          example: "2026-03-01"
+
+    RepaymentTrialResponse:
+      type: object
+      properties:
+        loan_no:
+          type: string
+        trial_date:
+          type: string
+          format: date
+        remaining_principal:
+          type: string
+          description: 剩余本金
+        interest_amount:
+          type: string
+          description: 应还利息
+        penalty_amount:
+          type: string
+          description: 应还罚息
+        other_fee_amount:
+          type: string
+          description: 应还其他费用
+        total_amount:
+          type: string
+          description: 总应还金额
+        details:
+          type: array
+          items:
+            $ref: '#/components/schemas/TrialDetailItem'
+
+    TrialDetailItem:
+      type: object
+      properties:
+        fee_code:
+          type: string
+          description: 费项编码
+        fee_name:
+          type: string
+          description: 费项名称
+        fee_category:
+          type: string
+          description: 费项类别（INTEREST/PENALTY/OTHER_FEE）
+        amount:
+          type: string
+          description: 金额
+
+    RepaymentRequest:
+      type: object
+      required:
+        - loan_no
+        - amount
+        - trial_date
+        - booking_date
+      properties:
+        loan_no:
+          type: string
+          description: 借据编号
+          example: LOAN20260001
+        amount:
+          type: number
+          format: double
+          description: 还款金额
+          example: 5000
+        trial_date:
+          type: string
+          format: date
+          description: 试算基准日期
+          example: "2026-03-01"
+        booking_date:
+          type: string
+          format: date
+          description: 入账日期
+          example: "2026-03-01"
+        repayment_type:
+          type: string
+          description: 还款类型
+          enum:
+            - NORMAL
+            - PARTIAL
+            - EARLY_SETTLEMENT
+          default: NORMAL
+        description:
+          type: string
+          description: 备注
+        is_backdated:
+          type: boolean
+          description: 是否补历史账
+          default: false
+        backdated_reason:
+          type: string
+          description: 补账原因
+        rule_code:
+          type: string
+          description: 分配规则编码（不填使用借据默认规则）
+        created_by:
+          type: string
+          description: 操作人
+          example: system
+
+    RepaymentResponse:
+      type: object
+      properties:
+        repayment_no:
+          type: string
+          description: 还款编号
+        loan_no:
+          type: string
+          description: 借据编号
+        amount:
+          type: string
+          description: 还款金额
+        loan_status:
+          type: string
+          description: 还款后借据状态
+        details:
+          type: array
+          items:
+            $ref: '#/components/schemas/RepaymentDetail'
+        booking_date:
+          type: string
+          format: date
+          description: 入账日期
+
+    RepaymentDetail:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        repayment_no:
+          type: string
+        loan_no:
+          type: string
+        fee_code:
+          type: string
+          description: 费项编码
+        fee_name:
+          type: string
+          description: 费项名称
+        fee_category:
+          type: string
+          description: 费项类别
+        amount:
+          type: string
+          description: 分配金额
+
+    # =====================================================
+    # 提前结清
+    # =====================================================
+
+    EarlySettlementTrialRequest:
+      type: object
+      required:
+        - trial_date
+      properties:
+        trial_date:
+          type: string
+          format: date
+          description: 试算基准日期
+          example: "2026-06-01"
+
+    EarlySettlementTrialResponse:
+      type: object
+      properties:
+        loan_no:
+          type: string
+        trial_date:
+          type: string
+          format: date
+        remaining_principal:
+          type: string
+          description: 剩余本金
+        accrued_interest:
+          type: string
+          description: 应计利息
+        accrued_penalty:
+          type: string
+          description: 应计罚息
+        unsettled_other_fee:
+          type: string
+          description: 未结清其他费用
+        early_settlement_fee:
+          type: string
+          description: 提前结清手续费
+        total_amount:
+          type: string
+          description: 总应还金额
+        details:
+          type: array
+          items:
+            $ref: '#/components/schemas/TrialDetailItem'
+
+    EarlySettlementRequest:
+      type: object
+      required:
+        - trial_date
+        - booking_date
+      properties:
+        trial_date:
+          type: string
+          format: date
+          description: 试算基准日期
+          example: "2026-06-01"
+        booking_date:
+          type: string
+          format: date
+          description: 入账日期
+          example: "2026-06-01"
+        operator:
+          type: string
+          description: 操作人
+          example: system
+        description:
+          type: string
+          description: 备注
+
+    # =====================================================
+    # 部分还款
+    # =====================================================
+
+    PartialRepaymentTrialRequest:
+      type: object
+      required:
+        - trial_date
+        - amount
+      properties:
+        trial_date:
+          type: string
+          format: date
+          description: 试算基准日期
+          example: "2026-03-01"
+        amount:
+          type: number
+          format: double
+          description: 拟还款金额
+          example: 3000
+        rule_code:
+          type: string
+          description: 分配规则编码（不填使用借据默认规则）
+
+    PartialRepaymentTrialResponse:
+      type: object
+      properties:
+        loan_no:
+          type: string
+        trial_date:
+          type: string
+          format: date
+        input_amount:
+          type: string
+          description: 输入金额
+        allocations:
+          type: array
+          items:
+            $ref: '#/components/schemas/PartialAllocation'
+          description: 金额分配明细
+        remaining_principal_after:
+          type: string
+          description: 还款后剩余本金
+        remaining_balance:
+          type: object
+          description: 还款后各类剩余金额
+          properties:
+            PRINCIPAL:
+              type: string
+            INTEREST:
+              type: string
+            PENALTY:
+              type: string
+            OTHER_FEE:
+              type: string
+        overpayment:
+          type: string
+          description: 超额部分（大于0表示有超额）
+
+    PartialAllocation:
+      type: object
+      properties:
+        fee_category:
+          type: string
+          description: 费项类别（PENALTY/OTHER_FEE/INTEREST/PRINCIPAL）
+        fee_name:
+          type: string
+          description: 费项名称
+        amount:
+          type: string
+          description: 分配金额

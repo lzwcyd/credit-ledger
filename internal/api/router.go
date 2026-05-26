@@ -57,6 +57,17 @@ func (r *Router) setupRoutes() {
 	// 还款相关
 	apiV1.HandleFunc("/repayments/trial", r.repaymentTrial).Methods("POST")
 	apiV1.HandleFunc("/repayments", r.makeRepayment).Methods("POST")
+
+	// 提前结清相关
+	apiV1.HandleFunc("/loans/{loan_no}/early-settlement/trial", r.earlySettlementTrial).Methods("POST")
+	apiV1.HandleFunc("/loans/{loan_no}/early-settlement", r.earlySettlement).Methods("POST")
+
+	// 部分还款相关
+	apiV1.HandleFunc("/loans/{loan_no}/partial-repayment/trial", r.partialRepaymentTrial).Methods("POST")
+	apiV1.HandleFunc("/loans/{loan_no}/partial-repayment", r.partialRepayment).Methods("POST")
+
+	// 还款计划汇总
+	apiV1.HandleFunc("/loans/{loan_no}/plans/summary", r.getPlanSummary).Methods("GET")
 }
 
 func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
