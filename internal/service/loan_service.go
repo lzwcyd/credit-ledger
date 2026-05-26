@@ -3,6 +3,7 @@ package service
 import (
 	"time"
 	"github.com/yourorg/credit-ledger/internal/calculator"
+	"github.com/yourorg/credit-ledger/pkg/decimal"
 )
 
 // LoanService 贷款服务
@@ -73,7 +74,9 @@ func (s *LoanService) CreateLoan(req CreateLoanRequest) (*CreateLoanResponse, er
 	// 计算还款计划
 	startDate := time.Now()
 	calculator := s.calculatorFactory.GetCalculator(req.RepaymentType)
-	_ = calculator.CalculateSchedule(req.Principal, req.AnnualInterestRate, req.TermMonths, startDate)
+	principal := decimal.NewFromFloat(req.Principal)
+	annualRate := decimal.NewFromFloat(req.AnnualInterestRate)
+	_ = calculator.CalculateSchedule(principal, annualRate, req.TermMonths, startDate)
 	
 	// 保存贷款和还款计划到数据库
 	// 这里只是示例，实际应该调用 repository 层
