@@ -12,7 +12,6 @@ import (
 	"github.com/yourorg/credit-ledger/config"
 	"github.com/yourorg/credit-ledger/internal/api"
 	"github.com/yourorg/credit-ledger/pkg/database"
-	"github.com/yourorg/credit-ledger/pkg/cache"
 	"github.com/yourorg/credit-ledger/pkg/logger"
 	"go.uber.org/zap"
 )
@@ -35,17 +34,8 @@ func main() {
 	}
 	defer db.Close()
 
-	// 初始化缓存（可选）
-	redisClient, err := cache.NewRedis(cfg.Redis)
-	if err != nil {
-		log.Warn("Failed to connect to Redis, continuing without cache", zap.Error(err))
-		redisClient = nil
-	} else {
-		defer redisClient.Close()
-	}
-
 	// 初始化 API 路由
-	router := api.NewRouter(db, redisClient)
+	router := api.NewRouter(db)
 
 	// 创建 HTTP 服务器
 	server := &http.Server{
