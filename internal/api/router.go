@@ -83,6 +83,11 @@ func (r *Router) setupRoutes() {
 	apiV1.HandleFunc("/loans/{loan_no}/write-off", r.applyWriteOff).Methods("POST")
 	apiV1.HandleFunc("/loans/{loan_no}/statement", r.generateStatement).Methods("GET")
 	apiV1.HandleFunc("/repayments/upcoming", r.getUpcomingDuePlans).Methods("GET")
+
+	// 优惠券
+	apiV1.HandleFunc("/coupons", r.createCoupons).Methods("POST")
+	apiV1.HandleFunc("/coupons/trial", r.couponTrial).Methods("POST")
+	apiV1.HandleFunc("/loans/{loan_no}/coupons", r.applyCoupon).Methods("POST")
 }
 
 func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
