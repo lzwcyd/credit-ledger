@@ -2,7 +2,7 @@ package calculator
 
 import (
 	"time"
-	"github.com/yourorg/credit-ledger/pkg/decimal"
+	"github.com/lzwcyd/credit-ledger/pkg/decimal"
 )
 
 // RepaymentCalculator 还款计算器接口

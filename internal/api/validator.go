@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/yourorg/credit-ledger/pkg/decimal"
+	"github.com/lzwcyd/credit-ledger/pkg/decimal"
 )
 
 // ValidateRequired 校验必填字段

@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/yourorg/credit-ledger/pkg/decimal"
+	"github.com/lzwcyd/credit-ledger/pkg/decimal"
 )
 
 // =====================================================

@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/yourorg/credit-ledger/internal/model"
-	"github.com/yourorg/credit-ledger/pkg/decimal"
+	"github.com/lzwcyd/credit-ledger/internal/model"
+	"github.com/lzwcyd/credit-ledger/pkg/decimal"
 )
 
 // =====================================================

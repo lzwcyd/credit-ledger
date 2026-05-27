@@ -6,7 +6,7 @@ import (
 	"strconv"
 
 	"github.com/gorilla/mux"
-	"github.com/yourorg/credit-ledger/internal/service"
+	"github.com/lzwcyd/credit-ledger/internal/service"
 )
 
 // =====================================================

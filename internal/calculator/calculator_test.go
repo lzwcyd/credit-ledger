@@ -3,7 +3,7 @@ package calculator
 import (
 	"testing"
 	"time"
-	"github.com/yourorg/credit-ledger/pkg/decimal"
+	"github.com/lzwcyd/credit-ledger/pkg/decimal"
 )
 
 func TestEqualInstallmentCalculator(t *testing.T) {

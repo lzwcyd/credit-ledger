@@ -3,9 +3,9 @@ package service
 import (
 	"fmt"
 	"time"
-	"github.com/yourorg/credit-ledger/internal/model"
-	"github.com/yourorg/credit-ledger/internal/repository"
-	"github.com/yourorg/credit-ledger/pkg/decimal"
+	"github.com/lzwcyd/credit-ledger/internal/model"
+	"github.com/lzwcyd/credit-ledger/internal/repository"
+	"github.com/lzwcyd/credit-ledger/pkg/decimal"
 )
 
 // BatchService 跑批服务

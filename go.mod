@@ -1,4 +1,4 @@
-module github.com/yourorg/credit-ledger
+module github.com/lzwcyd/credit-ledger
 
 go 1.26.1
 

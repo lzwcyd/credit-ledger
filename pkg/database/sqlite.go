@@ -6,7 +6,7 @@ import (
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
-	"github.com/yourorg/credit-ledger/config"
+	"github.com/lzwcyd/credit-ledger/config"
 )
 
 type DB struct {

@@ -5,9 +5,9 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
-	"github.com/yourorg/credit-ledger/pkg/database"
-	"github.com/yourorg/credit-ledger/internal/service"
-	"github.com/yourorg/credit-ledger/internal/repository"
+	"github.com/lzwcyd/credit-ledger/pkg/database"
+	"github.com/lzwcyd/credit-ledger/internal/service"
+	"github.com/lzwcyd/credit-ledger/internal/repository"
 )
 
 var startTime = time.Now()

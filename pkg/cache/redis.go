@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/go-redis/redis/v8"
-	"github.com/yourorg/credit-ledger/config"
+	"github.com/lzwcyd/credit-ledger/config"
 )
 
 type Redis struct {

@@ -3,10 +3,10 @@ package service
 import (
 	"fmt"
 	"time"
-	"github.com/yourorg/credit-ledger/internal/calculator"
-	"github.com/yourorg/credit-ledger/internal/model"
-	"github.com/yourorg/credit-ledger/internal/repository"
-	"github.com/yourorg/credit-ledger/pkg/decimal"
+	"github.com/lzwcyd/credit-ledger/internal/calculator"
+	"github.com/lzwcyd/credit-ledger/internal/model"
+	"github.com/lzwcyd/credit-ledger/internal/repository"
+	"github.com/lzwcyd/credit-ledger/pkg/decimal"
 )
 
 // =====================================================

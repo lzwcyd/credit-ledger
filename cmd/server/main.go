@@ -9,10 +9,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/yourorg/credit-ledger/config"
-	"github.com/yourorg/credit-ledger/internal/api"
-	"github.com/yourorg/credit-ledger/pkg/database"
-	"github.com/yourorg/credit-ledger/pkg/logger"
+	"github.com/lzwcyd/credit-ledger/config"
+	"github.com/lzwcyd/credit-ledger/internal/api"
+	"github.com/lzwcyd/credit-ledger/pkg/database"
+	"github.com/lzwcyd/credit-ledger/pkg/logger"
 	"go.uber.org/zap"
 )
 
