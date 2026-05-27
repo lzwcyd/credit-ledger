@@ -44,7 +44,7 @@ func (r *Router) createLoan(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	if err := ValidatePositiveFloat("principal", createReq.Principal); err != nil {
+	if err := ValidatePositiveDecimal("principal", createReq.Principal); err != nil {
 		BadRequest(w, err.Error())
 		return
 	}
@@ -104,7 +104,7 @@ func (r *Router) disburseLoan(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	if err := ValidatePositiveFloat("disburse_amount", disburseReq.DisburseAmount); err != nil {
+	if err := ValidatePositiveDecimal("disburse_amount", disburseReq.DisburseAmount); err != nil {
 		BadRequest(w, err.Error())
 		return
 	}
@@ -221,7 +221,7 @@ func (r *Router) makeRepayment(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	if err := ValidatePositiveFloat("amount", repayReq.Amount); err != nil {
+	if err := ValidatePositiveDecimal("amount", repayReq.Amount); err != nil {
 		BadRequest(w, err.Error())
 		return
 	}
@@ -322,7 +322,7 @@ func (r *Router) partialRepaymentTrial(w http.ResponseWriter, req *http.Request)
 		return
 	}
 
-	if err := ValidatePositiveFloat("amount", trialReq.Amount); err != nil {
+	if err := ValidatePositiveDecimal("amount", trialReq.Amount); err != nil {
 		BadRequest(w, err.Error())
 		return
 	}
@@ -357,7 +357,7 @@ func (r *Router) partialRepayment(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	if err := ValidatePositiveFloat("amount", repayReq.Amount); err != nil {
+	if err := ValidatePositiveDecimal("amount", repayReq.Amount); err != nil {
 		BadRequest(w, err.Error())
 		return
 	}

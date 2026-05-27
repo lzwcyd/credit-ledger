@@ -103,9 +103,9 @@ func (c *Coupon) CalculateDiscount(baseAmount decimal.Decimal) decimal.Decimal {
 type CreateCouponRequest struct {
 	CouponType     string  `json:"coupon_type"`
 	DiscountType   string  `json:"discount_type"`
-	FaceValue      float64 `json:"face_value"`
-	MaxDiscount    float64 `json:"max_discount,omitempty"`
-	MinUsageAmount float64 `json:"min_usage_amount,omitempty"`
+	FaceValue      string  `json:"face_value"`           // 改为 string 类型
+	MaxDiscount    string  `json:"max_discount,omitempty"` // 改为 string 类型
+	MinUsageAmount string  `json:"min_usage_amount,omitempty"` // 改为 string 类型
 	ApplicableFee  string  `json:"applicable_fee,omitempty"`
 	ValidFrom      string  `json:"valid_from"`
 	ValidTo        string  `json:"valid_to"`
@@ -119,7 +119,7 @@ type CreateCouponRequest struct {
 type ApplyCouponRequest struct {
 	CouponCode string  `json:"coupon_code"`
 	LoanNo     string  `json:"loan_no"`
-	BaseAmount float64 `json:"base_amount"` // 基数金额（用于计算百分比折扣）
+	BaseAmount string  `json:"base_amount"` // 改为 string 类型，避免精度损失
 	Operator   string  `json:"operator"`
 }
 
@@ -136,7 +136,7 @@ type ApplyCouponResponse struct {
 type CouponTrialRequest struct {
 	CouponCode string  `json:"coupon_code"`
 	LoanNo     string  `json:"loan_no"`
-	BaseAmount float64 `json:"base_amount"`
+	BaseAmount string  `json:"base_amount"` // 改为 string 类型，避免精度损失
 }
 
 // CouponTrialResponse 优惠券试算响应
@@ -164,7 +164,11 @@ func (s *LoanService) CreateCoupon(req CreateCouponRequest) ([]Coupon, error) {
 	if req.DiscountType == "" {
 		return nil, fmt.Errorf("折扣类型不能为空")
 	}
-	if req.FaceValue <= 0 {
+	faceValue, err := decimal.NewFromString(req.FaceValue)
+	if err != nil {
+		return nil, fmt.Errorf("面值格式错误: %w", err)
+	}
+	if !faceValue.IsPositive() {
 		return nil, fmt.Errorf("面值必须大于0")
 	}
 
@@ -197,9 +201,9 @@ func (s *LoanService) CreateCoupon(req CreateCouponRequest) ([]Coupon, error) {
 			CouponCode:      generateCouponCode(),
 			CouponType:      req.CouponType,
 			DiscountType:    req.DiscountType,
-			FaceValue:       decimal.NewFromFloat(req.FaceValue),
-			MaxDiscount:     decimal.NewFromFloat(req.MaxDiscount),
-			MinUsageAmount:  decimal.NewFromFloat(req.MinUsageAmount),
+			FaceValue:       faceValue,
+			MaxDiscount:     decimal.Zero(), // 默认为0，后面根据需要解析
+			MinUsageAmount:  decimal.Zero(), // 默认为0，后面根据需要解析
 			ApplicableFee:   req.ApplicableFee,
 			ValidFrom:       validFrom,
 			ValidTo:         validTo,
@@ -210,6 +214,22 @@ func (s *LoanService) CreateCoupon(req CreateCouponRequest) ([]Coupon, error) {
 			UpdatedBy:       req.Operator,
 			CreatedAt:       now,
 			UpdatedAt:       now,
+		}
+		// 解析 MaxDiscount
+		if req.MaxDiscount != "" {
+			maxDiscount, err := decimal.NewFromString(req.MaxDiscount)
+			if err != nil {
+				return nil, fmt.Errorf("最大折扣金额格式错误: %w", err)
+			}
+			coupon.MaxDiscount = maxDiscount
+		}
+		// 解析 MinUsageAmount
+		if req.MinUsageAmount != "" {
+			minUsageAmount, err := decimal.NewFromString(req.MinUsageAmount)
+			if err != nil {
+				return nil, fmt.Errorf("最低使用金额格式错误: %w", err)
+			}
+			coupon.MinUsageAmount = minUsageAmount
 		}
 		// TODO: 持久化到数据库
 		coupons = append(coupons, coupon)
@@ -229,7 +249,10 @@ func (s *LoanService) CouponTrial(req CouponTrialRequest) (*CouponTrialResponse,
 		}, nil
 	}
 
-	baseAmount := decimal.NewFromFloat(req.BaseAmount)
+	baseAmount, err := decimal.NewFromString(req.BaseAmount)
+	if err != nil {
+		return nil, fmt.Errorf("基数金额格式错误: %w", err)
+	}
 
 	// 校验有效性
 	if err := coupon.IsValid(); err != nil {
@@ -278,7 +301,10 @@ func (s *LoanService) ApplyCoupon(req ApplyCouponRequest) (*ApplyCouponResponse,
 		return nil, fmt.Errorf("优惠券不可用: %w", err)
 	}
 
-	baseAmount := decimal.NewFromFloat(req.BaseAmount)
+	baseAmount, err := decimal.NewFromString(req.BaseAmount)
+	if err != nil {
+		return nil, fmt.Errorf("基数金额格式错误: %w", err)
+	}
 
 	// 校验最低使用金额
 	if baseAmount.Lt(coupon.MinUsageAmount) {

@@ -155,7 +155,7 @@ func (s *LoanService) EarlySettlement(req EarlySettlementRequest) (*RepaymentRes
 	// 转为还款入账请求
 	repayReq := RepaymentRequest{
 		LoanNo:        req.LoanNo,
-		Amount:        trial.TotalAmount.Float64(),
+		Amount:        trial.TotalAmount.String(), // 使用 String() 方法转换为字符串
 		TrialDate:     req.TrialDate,
 		BookingDate:   req.BookingDate,
 		RepaymentType: "EARLY_SETTLEMENT",
@@ -268,7 +268,7 @@ func (s *LoanService) calculateFeeFromConfig(cfg model.FeeConfig, remainingPrinc
 type PartialRepaymentTrialRequest struct {
 	LoanNo    string  `json:"loan_no"`
 	TrialDate string  `json:"trial_date"`
-	Amount    float64 `json:"amount"` // 拟还款金额
+	Amount    string  `json:"amount"` // 改为 string 类型，避免精度损失
 	RuleCode  string  `json:"rule_code,omitempty"`
 }
 
@@ -306,7 +306,10 @@ func (s *LoanService) PartialRepaymentTrial(req PartialRepaymentTrialRequest) (*
 		return nil, fmt.Errorf("invalid trial_date: %w", err)
 	}
 
-	inputAmount := decimal.NewFromFloat(req.Amount)
+	inputAmount, err := decimal.NewFromString(req.Amount)
+	if err != nil {
+		return nil, fmt.Errorf("invalid amount: %w", err)
+	}
 
 	// 获取分配规则
 	ruleCode := req.RuleCode

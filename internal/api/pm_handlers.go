@@ -63,7 +63,7 @@ func (r *Router) applyPenaltyWaiver(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	if err := ValidatePositiveFloat("waiver_amount", waiverReq.WaiverAmount); err != nil {
+	if err := ValidatePositiveDecimal("waiver_amount", waiverReq.WaiverAmount); err != nil {
 		BadRequest(w, err.Error())
 		return
 	}

@@ -5,6 +5,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/yourorg/credit-ledger/pkg/decimal"
 )
 
 // ValidateRequired 校验必填字段
@@ -49,6 +51,18 @@ func ValidateLoanNo(loanNo string) error {
 // ValidatePositiveFloat 校验正数
 func ValidatePositiveFloat(name string, value float64) error {
 	if value <= 0 {
+		return fmt.Errorf("%s 必须大于0", name)
+	}
+	return nil
+}
+
+// ValidatePositiveDecimal 校验正数字符串
+func ValidatePositiveDecimal(name string, value string) error {
+	d, err := decimal.NewFromString(value)
+	if err != nil {
+		return fmt.Errorf("%s 格式错误: %s", name, value)
+	}
+	if !d.IsPositive() {
 		return fmt.Errorf("%s 必须大于0", name)
 	}
 	return nil

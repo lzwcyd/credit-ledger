@@ -16,8 +16,8 @@ import (
 // CreateLoanRequest 创建借据请求
 type CreateLoanRequest struct {
 	LoanNo             string  `json:"loan_no"`
-	Principal          float64 `json:"principal"`
-	AnnualRate         float64 `json:"annual_rate"`
+	Principal          string  `json:"principal"`          // 改为 string 类型，避免精度损失
+	AnnualRate         string  `json:"annual_rate"`        // 改为 string 类型
 	TermMonths         int     `json:"term_months"`
 	RepaymentTypeCode  string  `json:"repayment_type_code"`
 	ValueDate          string  `json:"value_date"`
@@ -30,7 +30,7 @@ type CreateLoanRequest struct {
 type DisburseRequest struct {
 	LoanNo           string  `json:"loan_no"`
 	DisburseDate     string  `json:"disburse_date"`
-	DisburseAmount   float64 `json:"disburse_amount"`
+	DisburseAmount   string  `json:"disburse_amount"`    // 改为 string 类型，避免精度损失
 	CreatedBy        string  `json:"created_by"`
 }
 
@@ -62,15 +62,15 @@ type TrialDetailItem struct {
 
 // RepaymentRequest 还款入账请求
 type RepaymentRequest struct {
-	LoanNo      string  `json:"loan_no"`
-	Amount      float64 `json:"amount"`
-	TrialDate   string  `json:"trial_date"`
-	BookingDate string  `json:"booking_date"`
+	LoanNo        string  `json:"loan_no"`
+	Amount        string  `json:"amount"`           // 改为 string 类型，避免精度损失
+	TrialDate     string  `json:"trial_date"`
+	BookingDate   string  `json:"booking_date"`
 	RepaymentType string `json:"repayment_type"` // NORMAL, EARLY_SETTLEMENT, PARTIAL
-	Description string  `json:"description"`
-	IsBackdated bool    `json:"is_backdated"`
+	Description   string  `json:"description"`
+	IsBackdated   bool    `json:"is_backdated"`
 	BackdatedReason string `json:"backdated_reason"`
-	CreatedBy   string  `json:"created_by"`
+	CreatedBy     string  `json:"created_by"`
 }
 
 // RepaymentResponse 还款入账响应
@@ -117,27 +117,37 @@ func NewLoanService(
 
 // CreateLoan 创建借据
 func (s *LoanService) CreateLoan(req CreateLoanRequest) (*model.Loan, error) {
+	// 解析金额
+	principal, err := decimal.NewFromString(req.Principal)
+	if err != nil {
+		return nil, fmt.Errorf("invalid principal: %w", err)
+	}
+	annualRate, err := decimal.NewFromString(req.AnnualRate)
+	if err != nil {
+		return nil, fmt.Errorf("invalid annual_rate: %w", err)
+	}
+
 	// 解析日期
 	valueDate, err := time.Parse("2006-01-02", req.ValueDate)
 	if err != nil {
 		return nil, fmt.Errorf("invalid value_date: %w", err)
 	}
-	
+
 	firstDueDate, err := time.Parse("2006-01-02", req.FirstDueDate)
 	if err != nil {
 		return nil, fmt.Errorf("invalid first_due_date: %w", err)
 	}
-	
+
 	maturityDate, err := time.Parse("2006-01-02", req.MaturityDate)
 	if err != nil {
 		return nil, fmt.Errorf("invalid maturity_date: %w", err)
 	}
-	
+
 	// 创建借据
 	loan := &model.Loan{
 		LoanNo:             req.LoanNo,
-		Principal:          decimal.NewFromFloat(req.Principal),
-		AnnualRate:         decimal.NewFromFloat(req.AnnualRate),
+		Principal:          principal,
+		AnnualRate:         annualRate,
 		TermMonths:         req.TermMonths,
 		RepaymentTypeCode:  req.RepaymentTypeCode,
 		AllocationRuleCode: "DEFAULT",
@@ -145,7 +155,7 @@ func (s *LoanService) CreateLoan(req CreateLoanRequest) (*model.Loan, error) {
 		FirstDueDate:       firstDueDate,
 		MaturityDate:       maturityDate,
 		Status:             "PENDING",
-		RemainingPrincipal: decimal.NewFromFloat(req.Principal),
+		RemainingPrincipal: principal,
 		CreatedBy:          req.CreatedBy,
 		UpdatedBy:          req.CreatedBy,
 	}
@@ -221,8 +231,13 @@ func (s *LoanService) Disburse(req DisburseRequest) (*model.Loan, error) {
 		return nil, fmt.Errorf("invalid disburse_date: %w", err)
 	}
 	
+	// 解析放款金额
+	disburseAmount, err := decimal.NewFromString(req.DisburseAmount)
+	if err != nil {
+		return nil, fmt.Errorf("invalid disburse_amount: %w", err)
+	}
+
 	// 更新借据
-	disburseAmount := decimal.NewFromFloat(req.DisburseAmount)
 	loan.Status = "DISBURSED"
 	loan.DisbursementDate = &disburseDate
 	loan.DisbursedAmount = disburseAmount
@@ -445,7 +460,10 @@ func (s *LoanService) Repayment(req RepaymentRequest) (*RepaymentResponse, error
 	}
 	
 	// 按规则分配还款金额
-	amount := decimal.NewFromFloat(req.Amount)
+	amount, err := decimal.NewFromString(req.Amount)
+	if err != nil {
+		return nil, fmt.Errorf("invalid amount: %w", err)
+	}
 	remaining := amount
 	var details []model.RepaymentDetail
 	

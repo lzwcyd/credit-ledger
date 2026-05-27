@@ -26,7 +26,7 @@ func (r *Router) createCoupons(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	if err := ValidatePositiveFloat("face_value", createReq.FaceValue); err != nil {
+	if err := ValidatePositiveDecimal("face_value", createReq.FaceValue); err != nil {
 		BadRequest(w, err.Error())
 		return
 	}

@@ -67,7 +67,7 @@ func (s *LoanService) UpdateCollectionStatus(req UpdateCollectionStatusRequest) 
 type PenaltyWaiverRequest struct {
 	LoanNo         string  `json:"loan_no"`
 	WaiverType     string  `json:"waiver_type"`   // PENALTY/INTEREST/OTHER_FEE
-	WaiverAmount   float64 `json:"waiver_amount"` // 减免金额
+	WaiverAmount   string  `json:"waiver_amount"` // 改为 string 类型，避免精度损失
 	Reason         string  `json:"reason"`
 	ApprovedBy     string  `json:"approved_by"`
 	Operator       string  `json:"operator"`
@@ -109,7 +109,10 @@ func (s *LoanService) ApplyPenaltyWaiver(req PenaltyWaiverRequest) (*PenaltyWaiv
 		originalAmount = loan.TotalOtherFee.Sub(loan.PaidOtherFee)
 	}
 
-	waiverAmount := decimal.NewFromFloat(req.WaiverAmount)
+	waiverAmount, err := decimal.NewFromString(req.WaiverAmount)
+	if err != nil {
+		return nil, fmt.Errorf("减免金额格式错误: %w", err)
+	}
 
 	if waiverAmount.Lte(decimal.Zero()) {
 		return nil, fmt.Errorf("减免金额必须大于0")
